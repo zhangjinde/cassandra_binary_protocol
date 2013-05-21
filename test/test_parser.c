@@ -163,7 +163,7 @@ void test_combined_parsers()
 void test_header_parser()
 {
     struct cql_header hdr, *parsed_hdr;
-    struct cql_header_parser_state p;
+    struct cql_header_parser p;
     unsigned char *d;
 
     d = (unsigned char *)&hdr;

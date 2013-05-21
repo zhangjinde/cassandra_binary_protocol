@@ -12,7 +12,8 @@ static int cql_parser_process_data(struct cql_parser_base *p, int (*fn)(struct c
         s++;
         len--;
     }
-    *e = s;
+    if (e)
+        *e = s;
     return p->bytes_remaining == 0;
 }
 
@@ -134,29 +135,28 @@ int cql_string_parser_process_data(struct cql_string_parser_state* p, unsigned c
 }
 
 
-
 /*
  * Header parsing
  */
 
-void cql_header_parser_init(struct cql_header_parser_state* p)
+void cql_header_parser_init(struct cql_header_parser* p)
 {
     p->b.bytes_remaining = sizeof(struct cql_header);
     memset(&p->hdr,0,sizeof(struct cql_header));
     p->p = (char *)&p->hdr;
 }
 
-int cql_header_parser_complete(struct cql_header_parser_state* p)
+int cql_header_parser_complete(struct cql_header_parser* p)
 {
     return cql_parser_complete(&p->b);
 }
 
-struct cql_header *cql_header_parser_getvalue(struct cql_header_parser_state* p)
+struct cql_header *cql_header_parser_getvalue(struct cql_header_parser* p)
 {
     return &p->hdr;
 }
 
-int cql_header_parser_process_byte(struct cql_header_parser_state* p, unsigned char b)
+int cql_header_parser_process_byte(struct cql_header_parser* p, unsigned char b)
 {
     if (p->b.bytes_remaining > 0)
     {
@@ -173,10 +173,10 @@ int cql_header_parser_process_byte(struct cql_header_parser_state* p, unsigned c
 
 static int cql_header_parser_process_byte_fn(struct cql_parser_base * p, unsigned char b)
 {
-    return cql_header_parser_process_byte((struct cql_header_parser_state *)p,b);
+    return cql_header_parser_process_byte((struct cql_header_parser *)p,b);
 }
 
-int cql_header_parser_process_data(struct cql_header_parser_state* p, unsigned char *s, int len, unsigned char **e )
+int cql_header_parser_process_data(struct cql_header_parser* p, unsigned char *s, int len, unsigned char **e )
 {
     return cql_parser_process_data(&p->b,cql_header_parser_process_byte_fn,s,len,e);
 }
@@ -186,8 +186,53 @@ int cql_header_parser_process_data(struct cql_header_parser_state* p, unsigned c
  * Result parsing
  */
 
+void cql_result_parser_init(struct cql_result_parser* p)
+{
+    p->state = CQL_RESULT_IN_HEADER;
+    cql_header_parser_init(&p->header_parser);
+}
 
-int cql_parse_result_message(struct cql_result_parser_state *state, char * buf, int buflen)
+int cql_result_parser_complete(struct cql_result_parser* p)
 {
     return 0;
 }
+
+int cql_result_parser_process_byte(struct cql_result_parser* p, unsigned char b)
+{
+    struct cql_header *hdr;
+
+    switch (p->state)
+    {
+    case CQL_RESULT_IN_HEADER:
+        if (cql_header_parser_process_byte(&p->header_parser,b))
+        {
+            /* the header is now complete. get the body length and reset the bodyread counter */
+            hdr = cql_header_parser_getvalue(&p->header_parser);
+            p->state = CQL_RESULT_IN_BODY;
+            p->bodylen = hdr->cql_body_length;
+            p->bodyread = 0;
+        }
+        break;
+    case CQL_RESULT_IN_BODY:
+        /* TODO: pass the byte into a parser appropriate for the response type we are reading */
+        p->bodyread++;
+        if (p->bodyread == p->bodylen)
+            p->state = CQL_RESULT_DONE;
+        break;
+    }
+    return p->state == CQL_RESULT_DONE;
+}
+
+int cql_result_parser_process_data(struct cql_result_parser* p, unsigned char *s, int len, unsigned char **e )
+{
+    while (len > 0 && !cql_result_parser_complete(p))
+    {
+        cql_result_parser_process_byte(p,*s);
+        s++;
+        len--;
+    }
+    if (e)
+        *e = s;
+    return cql_result_parser_complete(p);
+}
+

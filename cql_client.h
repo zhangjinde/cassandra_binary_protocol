@@ -20,7 +20,7 @@ struct cql_client
     int s;
 
     /* parse states for incoming data */
-    struct cql_header_parser_state hdr_parse_state;
+    struct cql_header_parser hdr_parse_state;
 };
 
 int cql_client_create(struct cql_client **client_out);
