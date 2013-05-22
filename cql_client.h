@@ -19,8 +19,8 @@ struct cql_client
     /* the socket connecting to the server */
     int s;
 
-    /* parse states for incoming data */
-    struct cql_header_parser hdr_parse_state;
+    /* parser for incoming data */
+    struct cql_result_parser parser;
 };
 
 int cql_client_create(struct cql_client **client_out);

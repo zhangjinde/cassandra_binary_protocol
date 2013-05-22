@@ -186,15 +186,22 @@ int cql_header_parser_process_data(struct cql_header_parser* p, unsigned char *s
  * Result parsing
  */
 
-void cql_result_parser_init(struct cql_result_parser* p)
+void cql_result_parser_init(struct cql_result_parser* p, void* callback_context)
 {
     p->state = CQL_RESULT_IN_HEADER;
+    p->callback_context = callback_context;
     cql_header_parser_init(&p->header_parser);
 }
 
+void cql_result_parser_set_callbacks(struct cql_result_parser* p, CQL_HEADER_CALLBACK_FN* header_callback)
+{
+    p->header_callback = header_callback;
+}
+
+
 int cql_result_parser_complete(struct cql_result_parser* p)
 {
-    return 0;
+    return p->state == CQL_RESULT_DONE;
 }
 
 int cql_result_parser_process_byte(struct cql_result_parser* p, unsigned char b)
@@ -208,6 +215,10 @@ int cql_result_parser_process_byte(struct cql_result_parser* p, unsigned char b)
         {
             /* the header is now complete. get the body length and reset the bodyread counter */
             hdr = cql_header_parser_getvalue(&p->header_parser);
+            if (p->header_callback != NULL)
+            {
+                (p->header_callback)(hdr,p->callback_context);
+            }
             p->state = CQL_RESULT_IN_BODY;
             p->bodylen = hdr->cql_body_length;
             p->bodyread = 0;

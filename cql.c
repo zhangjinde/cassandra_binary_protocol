@@ -247,73 +247,55 @@ int cql_query(struct cql_client *client, char * query, int consistency)
     return cql_recv_msg(client);
 }
 
+static int cql_recv_data(int s, unsigned char *buf, int buflen)
+{
+    int n;
+
+    n = recv(s, buf, buflen, 0);
+    if (n == -1)
+    {
+        printf("Error receiving data from CQL server (%d)\n", errno);
+        return -1;
+    }
+
+    printf("Received %d bytes from CQL server\n", n);
+    return n;
+}
+
+static void response_header_callback(struct cql_header *hdr, void *ctx)
+{
+    printf("recived CQL header v=%02x fl=%02x st=%02x op=%02x (%s) len=%d\n",
+        hdr->cql_version, hdr->cql_flags, hdr->cql_stream,
+        hdr->cql_opcode, cql_opcode(hdr->cql_opcode),
+        hdr->cql_body_length);
+}
+
 int cql_recv_msg(struct cql_client *client)
 {
     unsigned char buf[10*1024], *p, *e;
-    struct cql_header *hdr;
-    int n, msglen = 0, msgread = 0;
-    int c, s;
+    int n;
     int retcode = CQL_ERROR;
 
     if (client == NULL)
         return CQL_ERROR_INVALID_PARAMETERS;
 
-    s = client->s;
-    cql_header_parser_init(&client->hdr_parse_state);
+    cql_result_parser_init(&client->parser,client);
+    cql_result_parser_set_callbacks(&client->parser,response_header_callback);
 
     for (;;)
     {
-        printf("reading data (current msglen=%d, msgread=%d)\n",msglen,msgread);
-
-        n = recv(s, buf, sizeof(buf), 0);
+        n = cql_recv_data(client->s, buf, sizeof(buf));
         if (n == -1)
-        {
-            printf("Error receiving data from CQL server (%d)\n", errno);
             break;
-        }
 
-        printf("Received %d bytes from CQL server\n", n);
+        hexdump("resp", buf, n);
+
         p = buf;
 
-        /* see if there is more data needed for the header */
-        if (!cql_header_parser_complete(&client->hdr_parse_state))
-        {
-            cql_header_parser_process_data(&client->hdr_parse_state,p,n,&e);
-            msgread += (e-p);
-            n -= (e-p);
-            p = e;
-        }
-
-        /* if the header is complete, extract the message length from the header block */
-        if (cql_header_parser_complete(&client->hdr_parse_state))
-        {
-            if (msglen == 0)
-            {
-                hdr = cql_header_parser_getvalue(&client->hdr_parse_state);
-
-                printf("recived CQL header v=%02x fl=%02x st=%02x op=%02x (%s) len=%d\n",
-                    hdr->cql_version, hdr->cql_flags, hdr->cql_stream,
-                    hdr->cql_opcode, cql_opcode(hdr->cql_opcode),
-                    hdr->cql_body_length);
-
-                msglen = sizeof(struct cql_header) + hdr->cql_body_length;
-            }
-        }
-
-        /* msgread is the total number of bytes we have read (and processed) */
-        /* msglen is the total byte length of the whole message */
-        /* n is the number of bytes at *p which are yet to be processed */
-
-        if (n > 0 && msgread < msglen)
-        {
-            c = MIN(n, msglen - msgread);
-            /* todo: send the bytes to the response parser instead of just to hexdump */
-            hexdump(NULL, p, c);
-            msgread += c;
-        }
+        cql_result_parser_process_data(&client->parser,p,n,&e);
 
         /* check if the whole message has been read */
-        if (msglen > 0 && msgread == msglen)
+        if (cql_result_parser_complete(&client->parser))
         {
             /* the whole message has been processed */
             retcode = CQL_OK;

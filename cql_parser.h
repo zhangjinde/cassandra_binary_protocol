@@ -62,15 +62,20 @@ int cql_header_parser_process_data(struct cql_header_parser* p, unsigned char *s
 #define CQL_RESULT_IN_BODY          1
 #define CQL_RESULT_DONE             2
 
+typedef void CQL_HEADER_CALLBACK_FN(struct cql_header *, void *);
+
 struct cql_result_parser
 {
     int state;
     struct cql_header_parser header_parser;
     int bodylen;
     int bodyread;
+    void *callback_context;
+    CQL_HEADER_CALLBACK_FN* header_callback;
 };
 
-void cql_result_parser_init(struct cql_result_parser* p);
+void cql_result_parser_init(struct cql_result_parser* p, void* callback_context);
+void cql_result_parser_set_callbacks(struct cql_result_parser* p, CQL_HEADER_CALLBACK_FN* header_callback);
 int cql_result_parser_complete(struct cql_result_parser* p);
 int cql_result_parser_process_byte(struct cql_result_parser* p, unsigned char b);
 int cql_result_parser_process_data(struct cql_result_parser* p, unsigned char *s, int len, unsigned char **e );
