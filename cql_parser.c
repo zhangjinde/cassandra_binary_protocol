@@ -215,13 +215,17 @@ int cql_result_parser_process_byte(struct cql_result_parser* p, unsigned char b)
         {
             /* the header is now complete. get the body length and reset the bodyread counter */
             hdr = cql_header_parser_getvalue(&p->header_parser);
+            /* TODO: perform some validation on the header. enter an error state if it does not appear to be valid */
             if (p->header_callback != NULL)
             {
                 (p->header_callback)(hdr,p->callback_context);
             }
-            p->state = CQL_RESULT_IN_BODY;
             p->bodylen = hdr->cql_body_length;
             p->bodyread = 0;
+            if (p->bodylen == 0)
+                p->state = CQL_RESULT_DONE;
+            else
+                p->state = CQL_RESULT_IN_BODY;
         }
         break;
     case CQL_RESULT_IN_BODY:

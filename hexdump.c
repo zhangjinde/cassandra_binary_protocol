@@ -5,7 +5,7 @@ void hexdump( const char * prefix, unsigned char * b, int len )
 {
     for (int i = 0; i < len; )
     {
-        printf("%s%04d : ", prefix ? prefix : "", i);
+        printf("%s%06d : ", prefix ? prefix : "", i);
         int j;
         for (j = 0; j < 16; j++)
         {

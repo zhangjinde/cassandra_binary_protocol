@@ -214,13 +214,40 @@ void test_header_callback_fn(struct cql_header * hdr, void *ctx)
 void test_result_parser()
 {
     struct cql_header *hdr, *parsed_hdr;
-    unsigned char buf[sizeof(struct cql_header) + 8], *d = buf;
+    unsigned char buf[sizeof(struct cql_header) + 8], *d;
     struct cql_result_parser p;
-    int ctx = 0;
+    int ctx;
 
     hdr = (struct cql_header *)buf;
 
-    test_section("result parsers");
+    test_section("result parser on message with no body");
+
+    d = buf;
+    ctx = 0;
+
+    hdr->cql_version = CQL_VERSION | CQL_REQUEST;
+    hdr->cql_flags = CQL_FLAG_NONE;
+    hdr->cql_stream = 1;
+    hdr->cql_opcode = CQL_OPCODE_QUERY;
+    hdr->cql_body_length = 0;
+
+    cql_result_parser_init(&p,&ctx);
+    cql_result_parser_set_callbacks(&p,test_header_callback_fn);
+
+    TEST("init state", p.state == CQL_RESULT_IN_HEADER);
+    TEST("init", p.header_parser.b.bytes_remaining == sizeof(struct cql_header));
+
+    cql_result_parser_process_data(&p,d,8,&d);
+    TEST("pointer", d == buf + 8);
+    TEST("state", p.state == CQL_RESULT_DONE);
+    TEST("remaining", p.header_parser.b.bytes_remaining == 0);
+    TEST("context changed", ctx == 1);
+
+
+    test_section("result parser on message with body");
+
+    d = buf;
+    ctx = 0;
 
     hdr->cql_version = CQL_VERSION | CQL_REQUEST;
     hdr->cql_flags = CQL_FLAG_NONE;
@@ -239,10 +266,12 @@ void test_result_parser()
     TEST("pointer", d == buf + 5);
     TEST("state", p.state == CQL_RESULT_IN_HEADER);
     TEST("remaining", p.header_parser.b.bytes_remaining == 3);
+    TEST("context unchanged", ctx == 0);
 
     cql_result_parser_process_data(&p,d,4,&d);
     TEST("pointer", d == buf + 9);
     TEST("state", p.state == CQL_RESULT_IN_BODY);
+    TEST("context changed", ctx == 1);
 
     parsed_hdr = cql_header_parser_getvalue(&p.header_parser);
 

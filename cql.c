@@ -288,7 +288,7 @@ int cql_recv_msg(struct cql_client *client)
         if (n == -1)
             break;
 
-        hexdump("resp", buf, n);
+        hexdump("resp : ", buf, n);
 
         p = buf;
 

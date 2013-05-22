@@ -25,8 +25,8 @@ ifeq ($(DEBUG),1)
 CFLAGS = -DDEBUG=1 -Wall -g
 LINKFLAGS = -g
 else
-CFLAGS = -DDEBUG=0 -Wall -O2
-LINKFLAGS = -O2
+CFLAGS = -DDEBUG=0 -Wall -O3
+LINKFLAGS = -O3
 endif
 
 ifeq ($(OSTYPE),Darwin)
